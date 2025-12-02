@@ -1,0 +1,7 @@
+[theme]
+base="light"
+primaryColor="#003366"           # Azul PMDF
+backgroundColor="#F8FAFC"        # Fundo do app
+secondaryBackgroundColor="#FFFFFF"
+textColor="#1E293B"
+font="sans serif"
