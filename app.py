@@ -103,14 +103,9 @@ hr {
     border: 1px solid #003366 !important;
 }
 
-/* Cards e métricas */
-[data-testid="stMetricValue"] {
-    color: #003366 !important;
-    font-weight: 700 !important;
-}
 /* ==========================
-    METRICS (st.metric)
-    ========================== */
+METRICS (st.metric)
+========================== */
 
 [data-testid="stMetric"] {
     background-color: #ffffff !important;
