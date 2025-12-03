@@ -108,28 +108,28 @@ hr {
     color: #003366 !important;
     font-weight: 700 !important;
 }
-    /* ==========================
-       METRICS (st.metric)
-       ========================== */
+/* ==========================
+    METRICS (st.metric)
+    ========================== */
 
-    [data-testid="stMetric"] {
-        background-color: #ffffff !important;
-        border-radius: 12px !important;
-        padding: 0.7rem 1rem !important;
-        border: 1px solid #CBD5E1 !important;
-        box-shadow: 0 1px 3px rgba(15,23,42,0.12);
-    }
+[data-testid="stMetric"] {
+    background-color: #ffffff !important;
+    border-radius: 12px !important;
+    padding: 0.7rem 1rem !important;
+    border: 1px solid #CBD5E1 !important;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.12);
+}
 
-    [data-testid="stMetricLabel"] {
-        color: #64748B !important;
-        font-size: 0.8rem !important;
-    }
+[data-testid="stMetricLabel"] {
+    color: #64748B !important;
+    font-size: 0.8rem !important;
+}
 
-    [data-testid="stMetricValue"] {
-        color: #003366 !important;
-        font-weight: 700 !important;
-        font-size: 1.3rem !important;
-    }
+[data-testid="stMetricValue"] {
+    color: #003366 !important;
+    font-weight: 700 !important;
+    font-size: 1.3rem !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -212,14 +212,14 @@ def calcular_gini(valores):
 
 # Função para classificar a faixa
 def classificar_faixa(qtd):
-    if qtd == 1:
-        return "1-3 serviços"
-    elif 2 <= qtd <= 5:
-        return "4-6 serviços"
-    elif 6 <= qtd <= 10:
-        return "7-9 serviços"
+    if 10 <= qtd <= 20:
+        return "10-20 serviços"
+    elif 20 <= qtd <= 40:
+        return "20-40 serviços"
+    elif 40 <= qtd <= 60:
+        return "40-60 serviços"
     else:
-        return "10 serviços"
+        return "60+ serviços"
 
 # Carrega a base
 df = load_svg_data()
@@ -317,14 +317,14 @@ with tab1:
         y="QTD_SVG",
         color="UNIDADE",
         barmode="group",
-        title="SVG por Unidade e Mês",
+        title="SVG por Unidade e Mês (exibindo as 10 unidades com mais SVG)",
         labels={"MES": "", "QTD_SVG": "Quantidade de SVG", "UNIDADE": "Unidades"}
     )
     fig.update_layout(**DEFAULT_LAYOUT)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # =========================================
-# 2. DISTRIBUIÇÃO DO SVG (DINÂMICOS)
+# 2. DISTRIBUIÇÃO DO SVG
 # =========================================
 with tab2:
     st.subheader("📊 Distribuição do SVG")
@@ -353,7 +353,7 @@ with tab2:
             customdata=svg_por_unidade[["PORCENTAGEM"]].to_numpy()
         )
         fig.update_layout(**DEFAULT_LAYOUT)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col2:
         svg_por_mes = (
@@ -400,7 +400,7 @@ with tab2:
         )
         fig_trend.update_layout(**DEFAULT_LAYOUT)
 
-        st.plotly_chart(fig_trend, use_container_width=True)
+        st.plotly_chart(fig_trend, width="stretch")
 
     col3, col4 = st.columns(2)
 
@@ -419,7 +419,7 @@ with tab2:
             labels={"GRADUACAO": "", "QTD_SVG": "Quantidade de SVG"}
         )   
         fig.update_layout(**DEFAULT_LAYOUT)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     with col4:
         # Top 10 policiais (por quantidade de SVG)
         top10_pol_porsvg = (
@@ -442,7 +442,7 @@ with tab2:
             hovertemplate="Nome: %{y}<br>SVG: %{x}<br>Matrícula: %{customdata}"
         )
         fig.update_traces(customdata=top10_pol_porsvg["MATRICULA"])
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 # =========================================
 # 3. ANÁLISE OPERACIONAL
@@ -469,7 +469,7 @@ with tab3:
             )
         )
         # Ordena faixas manualmente
-        ordem_faixas = ["1-3 serviços", "4-6 serviços", "7-9 serviços", "10 serviços"]
+        ordem_faixas = ["10-20 serviços", "20-40 serviços", "40-60 serviços", "60+ serviços"]
         dist_faixas["FAIXA_SVG"] = pd.Categorical(dist_faixas["FAIXA_SVG"],
                                                 categories=ordem_faixas,
                                                 ordered=True)
@@ -489,7 +489,7 @@ with tab3:
             textposition="auto"
         )
         fig.update_layout(**DEFAULT_LAYOUT)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         with st.expander("Ver tabela detalhada por faixa"):
             st.dataframe(dist_faixas.assign(PCT_POLICIAIS=lambda d: d["PCT_POLICIAIS"].round(1)))
 
@@ -510,37 +510,63 @@ with tab3:
             .rename(columns={"MATRICULA": "POLICIAIS_UNICOS"})
         )
 
-        # Junta as duas informações
-        media_svg_unidade = svg_por_unidade.merge(policiais_por_unidade, on="UNIDADE")
+        # Quantidade de meses em que cada unidade aparece (meses ativos)
+        meses_por_unidade = (
+            df_filtrado
+            .groupby("UNIDADE", as_index=False)["MES"]
+            .nunique()
+            .rename(columns={"MES": "MESES_ATIVOS"})
+        )
 
-        # Calcula média de SVG por policial
-        media_svg_unidade["MEDIA_SVG"] = (
-            media_svg_unidade["TOTAL_SVG"] / media_svg_unidade["POLICIAIS_UNICOS"]
-        ).round(2)
+        # Junta tudo
+        media_svg_unidade = (
+            svg_por_unidade
+            .merge(policiais_por_unidade, on="UNIDADE")
+            .merge(meses_por_unidade, on="UNIDADE")
+        )
 
-        # Ordena
-        media_svg_unidade = media_svg_unidade.sort_values("MEDIA_SVG", ascending=False)
+        # Calcula média MENSAL de SVG por policial em cada unidade
+        # media_svg_unidade["MEDIA_MENSAL_SVG"] = (
+        #     media_svg_unidade["TOTAL_SVG"] /
+        #     (media_svg_unidade["POLICIAIS_UNICOS"] * media_svg_unidade["MESES_ATIVOS"])
+        # ).round(2)
         
+        # Calcula média MENSAL de SVG em cada unidade (sem policiais)
+        media_svg_unidade["MEDIA_MENSAL_SVG"] = (
+            media_svg_unidade["TOTAL_SVG"] / media_svg_unidade["MESES_ATIVOS"]
+        )
+
+
+        # Ordena decrescente pela média mensal
+        media_svg_unidade = media_svg_unidade.sort_values("MEDIA_MENSAL_SVG", ascending=False)
+
         fig_media = px.bar(
             media_svg_unidade,
             x="UNIDADE",
-            y="MEDIA_SVG",
-            title="Média de SVG por policial em cada Unidade",
-            labels={"UNIDADE": "", "MEDIA_SVG": "Média de SVG"}
+            y="MEDIA_MENSAL_SVG",
+            title="Média MENSAL em cada Unidade",
+            labels={"UNIDADE": "", "MEDIA_MENSAL_SVG": "Média mensal de SVG / unidade"}
         )
 
         fig_media.update_layout(**DEFAULT_LAYOUT)
 
-        st.plotly_chart(fig_media, use_container_width=True)
+        st.plotly_chart(fig_media, width="stretch")
+
         with st.expander("Ver tabela detalhada"):
             st.dataframe(media_svg_unidade)
 
+
+    # Mapa de calor - SVG por Unidade e Mês (ordenado)
     heatmap_svg = (
-        df_filtrado.groupby(["UNIDADE", "MES_NUM", "MES"], as_index=False)["QTD_SVG"]
+        df_filtrado
+        .groupby(["UNIDADE", "MES_NUM", "MES"], as_index=False)["QTD_SVG"]
         .sum()
-        .sort_values(["UNIDADE", "MES_NUM"])
     )
 
+    # Garantir ordem correta
+    heatmap_svg = heatmap_svg.sort_values("MES_NUM")
+
+    # Pivot: MES como índice, mas usando MES_NUM para ordenar
     pivot_heatmap = heatmap_svg.pivot_table(
         index="MES", 
         columns="UNIDADE", 
@@ -548,17 +574,32 @@ with tab3:
         fill_value=0
     )
 
+    # Criamos um dataframe auxiliar apenas para pegar a ordem
+    ordem_meses = (
+        heatmap_svg[["MES_NUM", "MES"]]
+        .drop_duplicates()
+        .sort_values("MES_NUM")["MES"]
+        .tolist()
+    )
+
+    # Reindexa seguindo MES_NUM
+    pivot_heatmap = pivot_heatmap.reindex(ordem_meses)
+
+    # Criar Heatmap Plotly
     fig = px.imshow(
         pivot_heatmap,
         x=pivot_heatmap.columns,
         y=pivot_heatmap.index,
-        color_continuous_scale="Blues",
+        color_continuous_scale=["#E8EEF7", "#003366", "#C8A100"],
         aspect="auto",
         labels=dict(color="Total SVG"),
         title="Heatmap de SVG por Unidade e Mês",
     )
+
     fig.update_layout(**DEFAULT_LAYOUT)
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_traces(text=pivot_heatmap.values, texttemplate="%{text}")
+    st.plotly_chart(fig, width="stretch")
+
 
 # =========================================
 # 4. RELATÓRIO
@@ -666,10 +707,10 @@ with tab4:
     ### 2) Perfil Individual de Engajamento
     A distribuição dos policiais por número de SVG indica:
 
-    - **1-3 serviços:** {dist_faixas_dict.get("1-3 serviços", 0)} policiais  
-    - **4-6 serviços:** {dist_faixas_dict.get("4-6 serviços", 0)} policiais  
-    - **7-9 serviços:** {dist_faixas_dict.get("7-9 serviços", 0)} policiais  
-    - **10 serviços:** {dist_faixas_dict.get("10 serviços", 0)} policiais  
+    - **10-20 serviços:** {dist_faixas_dict.get("10-20 serviços", 0)} policiais  
+    - **20-40 serviços:** {dist_faixas_dict.get("20-40 serviços", 0)} policiais  
+    - **40-60 serviços:** {dist_faixas_dict.get("40-60 serviços", 0)} policiais  
+    - **60+ serviços:** {dist_faixas_dict.get("60+ serviços", 0)} policiais  
 
     Esse perfil mostra quantos estão em engajamento pontual, moderado e intensivo.
 
