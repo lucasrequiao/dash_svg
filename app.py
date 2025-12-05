@@ -136,15 +136,13 @@ st.title("🛡️ Painel de Análise do SVG (Serviço Voluntário Gratificado)")
 @st.cache_data
 def load_svg_data():
     df_raw = pd.read_excel("analise_svg.xlsx")
+    df_raw.columns = df_raw.columns.str.strip()
 
     # Renomeia colunas
     rename_map = {
-        "MÊS": "MES",
-        "UNIDADE": "UNIDADE",
         "GRADUAÇÃO": "GRADUACAO",
-        "NOME": "NOME",
         "MATRÍCULA": "MATRICULA",
-        "QUANTIDADE": "QTD_SVG",
+        "QUANT": "QTD_SVG",
     }
     df = df_raw.rename(columns=rename_map)
 
@@ -243,6 +241,8 @@ if df_filtrado.empty:
     st.warning("Nenhum registro encontrado para os filtros selecionados.")
     st.stop()
 
+st.dataframe(df_filtrado)
+
 st.markdown("---")
 
 # ============== Seções em Abas ===============================
@@ -306,7 +306,7 @@ with tab1:
     unidades_selecionadas = df_filtrado["UNIDADE"].value_counts().sort_values(ascending=False).head(10).index
     svg_unid_mes = svg_unid_mes[svg_unid_mes["UNIDADE"].isin(unidades_selecionadas)]
 
-    fig = px.bar(
+    fig_unid_mes = px.bar(
         svg_unid_mes,
         x="MES",
         y="QTD_SVG",
@@ -315,18 +315,17 @@ with tab1:
         title="SVG por Unidade e Mês (exibindo as 10 unidades com mais SVG)",
         labels={"MES": "", "QTD_SVG": "Quantidade de SVG", "UNIDADE": "Unidades"}
     )
-    fig.update_layout(**DEFAULT_LAYOUT)
-    st.plotly_chart(fig, width="stretch")
+    fig_unid_mes.update_layout(**DEFAULT_LAYOUT)
+    st.plotly_chart(fig_unid_mes, width="stretch")
 
 # =========================================
 # 2. DISTRIBUIÇÃO DO SVG
 # =========================================
 with tab2:
-    st.subheader("📊 Distribuição do SVG")
+    tab_unid, tab_com, tab_pol = st.tabs(["🏢 Unidades", "📍 CPRs", "👮 Policiais"])
 
-    col1, col2 = st.columns(2)
-
-    with col1:
+    with tab_unid:
+        # SVG total por unidade
         svg_por_unidade = (
             df_filtrado
             .groupby("UNIDADE", as_index=False)["QTD_SVG"]
@@ -336,166 +335,19 @@ with tab2:
         total_svg = svg_por_unidade["QTD_SVG"].sum()
         svg_por_unidade["PORCENTAGEM"] = (svg_por_unidade["QTD_SVG"] / total_svg) * 100
         svg_por_unidade = svg_por_unidade.sort_values("PORCENTAGEM", ascending=False)
-        fig = px.bar(svg_por_unidade,
+        fig_unid = px.bar(svg_por_unidade,
             x="UNIDADE",
             y="QTD_SVG",
             orientation="v",
             title="SVG por Unidade",
             labels={"UNIDADE": "", "QTD_SVG": "Quantidade de SVG"}
         )
-        fig.update_traces(
+        fig_unid.update_traces(
             hovertemplate="Unidade: %{x}<br>Total SVG: %{y}<br>Porcentagem: %{customdata[0]:.1f}%",
             customdata=svg_por_unidade[["PORCENTAGEM"]].to_numpy()
         )
-        fig.update_layout(**DEFAULT_LAYOUT)
-        st.plotly_chart(fig, width="stretch")
-
-    with col2:
-        svg_por_mes = (
-            df_filtrado
-            .groupby(["MES_NUM", "MES"], as_index=False)["QTD_SVG"]
-            .sum()
-            .sort_values("MES_NUM")  
-        )
-        
-        svg_por_mes["MES"] = pd.Categorical(
-            svg_por_mes["MES"],
-            categories=svg_por_mes.sort_values("MES_NUM")["MES"],
-            ordered=True
-        )
-        svg_por_mes["MM3"] = svg_por_mes["QTD_SVG"].rolling(window=3, min_periods=1).mean()
-        fig_trend = go.Figure()
-
-        # Linha real dos valores mensais
-        fig_trend.add_trace(go.Scatter(
-            x=svg_por_mes["MES"],
-            y=svg_por_mes["QTD_SVG"],
-            mode="lines+markers",
-            name="SVG Mensal",
-            line=dict(color="#003366", width=3),
-            marker=dict(size=8),
-            hovertemplate="Mês: %{x}<br>Quantidade de SVG: %{y}"
-        ))
-
-        # Linha da média móvel (suavização)
-        fig_trend.add_trace(go.Scatter(
-            x=svg_por_mes["MES"],
-            y=svg_por_mes["MM3"],
-            mode="lines",
-            name="Média Móvel (3 meses)",
-            line=dict(color="#C8A100", width=4, dash="dash")
-        ))
-
-        fig_trend.update_layout(
-            title="Tendência Mensal do SVG com Média Móvel (MM3)",
-            xaxis_title="Mês",
-            yaxis_title="Quantidade de SVG",
-            height=500,
-            xaxis=dict(tickangle=-30)
-        )
-        fig_trend.update_layout(**DEFAULT_LAYOUT)
-
-        st.plotly_chart(fig_trend, width="stretch")
-
-    col3, col4 = st.columns(2)
-
-    with col3:
-        svg_por_grad = (
-            df_filtrado
-            .groupby("GRADUACAO", as_index=False)["QTD_SVG"]
-            .sum()
-            .sort_values("QTD_SVG", ascending=False)
-        )
-        fig = px.bar(svg_por_grad,
-            x="GRADUACAO",
-            y="QTD_SVG",
-            orientation="v",
-            title="SVG por Graduação",
-            labels={"GRADUACAO": "", "QTD_SVG": "Quantidade de SVG"}
-        )   
-        fig.update_layout(**DEFAULT_LAYOUT)
-        st.plotly_chart(fig, width="stretch")
-    with col4:
-        # Top 10 policiais (por quantidade de SVG)
-        top10_pol_porsvg = (
-            df_filtrado
-            .groupby(["MATRICULA", "NOME"], as_index=False)["QTD_SVG"]
-            .sum()
-            .sort_values("QTD_SVG", ascending=False)
-            .head(10)
-        )
-        fig = px.bar(
-            top10_pol_porsvg.sort_values("QTD_SVG"),
-            x="QTD_SVG",
-            y="NOME",
-            orientation="h",
-            title="Top 10 Policiais por Quantidade de SVG",
-            labels={"QTD_SVG": "Quantidade de SVG", "NOME": ""}
-        )
-        fig.update_layout(**DEFAULT_LAYOUT)
-        fig.update_traces(
-            hovertemplate="Nome: %{y}<br>SVG: %{x}<br>Matrícula: %{customdata}"
-        )
-        fig.update_traces(customdata=top10_pol_porsvg["MATRICULA"])
-        st.plotly_chart(fig, width="stretch")
-
-# =========================================
-# 3. ANÁLISE OPERACIONAL
-# =========================================
-with tab3:
-    st.subheader("📊 Análise Operacional")
-    col1, col2 = st.columns(2)
-    with col1:
-        #SVG por Policial e faixa de distribuição
-        svg_por_policial = (
-            df_filtrado
-            .groupby("MATRICULA", as_index=False)["QTD_SVG"]
-            .sum()
-            .rename(columns={"QTD_SVG": "TOTAL_SVG"})
-        )
-        svg_por_policial["FAIXA_SVG"] = svg_por_policial["TOTAL_SVG"].apply(classificar_faixa)
-        # Agrupa por faixa
-        dist_faixas = (
-            svg_por_policial
-            .groupby("FAIXA_SVG", as_index=False)
-            .agg(
-                POLICIAIS=("MATRICULA", "nunique"),
-                TOTAL_SVG=("TOTAL_SVG", "sum")
-            )
-        )
-        # Ordena faixas manualmente
-        ordem_faixas = ["10-20 serviços", "20-40 serviços", "40-60 serviços", "60+ serviços"]
-        dist_faixas["FAIXA_SVG"] = pd.Categorical(dist_faixas["FAIXA_SVG"],
-                                                categories=ordem_faixas,
-                                                ordered=True)
-        dist_faixas = dist_faixas.sort_values("FAIXA_SVG")
-        # Percentual de policiais em cada faixa
-        total_policiais = dist_faixas["POLICIAIS"].sum()
-        dist_faixas["PCT_POLICIAIS"] = dist_faixas["POLICIAIS"] / total_policiais * 100
-        fig = px.bar(dist_faixas,
-            x="FAIXA_SVG",
-            y="POLICIAIS",
-            text="PCT_POLICIAIS",
-            title="Distribuição de policiais por faixa de SVG no período filtrado",
-            labels={"FAIXA_SVG": "Faixa de serviços realizados", "POLICIAIS": "Quantidade de policiais"}
-        )
-        fig.update_traces(
-            texttemplate="%{text:.1f}%",  
-            textposition="auto"
-        )
-        fig.update_layout(**DEFAULT_LAYOUT)
-        st.plotly_chart(fig, width="stretch")
-        with st.expander("Ver tabela detalhada por faixa"):
-            st.dataframe(dist_faixas.assign(PCT_POLICIAIS=lambda d: d["PCT_POLICIAIS"].round(1)))
-
-    with col2:
-        # SVG total por unidade
-        svg_por_unidade = (
-            df_filtrado
-            .groupby("UNIDADE", as_index=False)["QTD_SVG"]
-            .sum()
-            .rename(columns={"QTD_SVG": "TOTAL_SVG"})
-        )
+        fig_unid.update_layout(**DEFAULT_LAYOUT)
+        st.plotly_chart(fig_unid, width="stretch")
 
         # Policiais distintos por unidade
         policiais_por_unidade = (
@@ -513,7 +365,6 @@ with tab3:
             .rename(columns={"MES": "MESES_ATIVOS"})
         )
 
-        # Junta tudo
         media_svg_unidade = (
             svg_por_unidade
             .merge(policiais_por_unidade, on="UNIDADE")
@@ -528,14 +379,13 @@ with tab3:
         
         # Calcula média MENSAL de SVG em cada unidade (sem policiais)
         media_svg_unidade["MEDIA_MENSAL_SVG"] = (
-            media_svg_unidade["TOTAL_SVG"] / media_svg_unidade["MESES_ATIVOS"]
-        )
-
+            media_svg_unidade["QTD_SVG"] / media_svg_unidade["MESES_ATIVOS"]
+        ).round(2)
 
         # Ordena decrescente pela média mensal
         media_svg_unidade = media_svg_unidade.sort_values("MEDIA_MENSAL_SVG", ascending=False)
 
-        fig_media = px.bar(
+        fig_media_unid = px.bar(
             media_svg_unidade,
             x="UNIDADE",
             y="MEDIA_MENSAL_SVG",
@@ -543,13 +393,121 @@ with tab3:
             labels={"UNIDADE": "", "MEDIA_MENSAL_SVG": "Média mensal de SVG / unidade"}
         )
 
-        fig_media.update_layout(**DEFAULT_LAYOUT)
+        fig_media_unid.update_layout(**DEFAULT_LAYOUT)
 
-        st.plotly_chart(fig_media, width="stretch")
+        st.plotly_chart(fig_media_unid, width="stretch")
 
         with st.expander("Ver tabela detalhada"):
-            st.dataframe(media_svg_unidade)
+            st.dataframe(media_svg_unidade)    
 
+    with tab_com:
+        # SVG total por comando
+        svg_por_comando = (
+            df_filtrado
+            .groupby("COMANDO", as_index=False)["QTD_SVG"]
+            .sum()
+            .sort_values("QTD_SVG", ascending=False)
+        )
+
+        fig_comando = px.bar(
+            svg_por_comando,
+            x="COMANDO",
+            y="QTD_SVG",
+            title="Total de SVG por Comando de Policiamento",
+            labels={"QTD_SVG": "Total de SVG"}
+        )
+        fig_comando.update_layout(**DEFAULT_LAYOUT)
+        st.plotly_chart(fig_comando, width="stretch")
+        
+    with tab_pol:
+        # SVG total por graduação
+        svg_por_grad = (
+            df_filtrado
+            .groupby("GRADUACAO", as_index=False)["QTD_SVG"]
+            .sum()
+            .sort_values("QTD_SVG", ascending=False)
+        )
+        fig_grad = px.bar(svg_por_grad,
+            x="GRADUACAO",
+            y="QTD_SVG",
+            orientation="v",
+            title="SVG por Graduação",
+            labels={"GRADUACAO": "", "QTD_SVG": "Quantidade de SVG"}
+        )   
+        fig_grad.update_layout(**DEFAULT_LAYOUT)
+        st.plotly_chart(fig_grad, width="stretch")
+
+        # Top 10 policiais (por quantidade de SVG)
+        top10_pol_porsvg = (
+            df_filtrado
+            .groupby(["MATRICULA", "NOME"], as_index=False)["QTD_SVG"]
+            .sum()
+            .sort_values("QTD_SVG", ascending=False)
+            .head(10)
+        )
+        fig_top10_pol = px.bar(
+            top10_pol_porsvg.sort_values("QTD_SVG"),
+            x="QTD_SVG",
+            y="NOME",
+            orientation="h",
+            title="Top 10 Policiais por Quantidade de SVG",
+            labels={"QTD_SVG": "Quantidade de SVG", "NOME": ""}
+        )
+        fig_top10_pol.update_layout(**DEFAULT_LAYOUT)
+        fig_top10_pol.update_traces(
+            hovertemplate="Nome: %{y}<br>SVG: %{x}<br>Matrícula: %{customdata}"
+        )
+        fig_top10_pol.update_traces(customdata=top10_pol_porsvg["MATRICULA"])
+        st.plotly_chart(fig_top10_pol, width="stretch")
+
+
+# =========================================
+# 3. ANÁLISE OPERACIONAL
+# =========================================
+with tab3:
+    st.subheader("📊 Análise Operacional")
+
+    #SVG por Policial e faixa de distribuição
+    svg_por_policial = (
+        df_filtrado
+        .groupby("MATRICULA", as_index=False)["QTD_SVG"]
+        .sum()
+        .rename(columns={"QTD_SVG": "TOTAL_SVG"})
+    )
+    svg_por_policial["FAIXA_SVG"] = svg_por_policial["TOTAL_SVG"].apply(classificar_faixa)
+    # Agrupa por faixa
+    dist_faixas = (
+        svg_por_policial
+        .groupby("FAIXA_SVG", as_index=False)
+        .agg(
+            POLICIAIS=("MATRICULA", "nunique"),
+            TOTAL_SVG=("TOTAL_SVG", "sum")
+        )
+    )
+    # Ordena faixas manualmente
+    ordem_faixas = ["10-20 serviços", "20-40 serviços", "40-60 serviços", "60+ serviços"]
+    dist_faixas["FAIXA_SVG"] = pd.Categorical(dist_faixas["FAIXA_SVG"],
+                                            categories=ordem_faixas,
+                                            ordered=True)
+    dist_faixas = dist_faixas.sort_values("FAIXA_SVG")
+    # Percentual de policiais em cada faixa
+    total_policiais = dist_faixas["POLICIAIS"].sum()
+    dist_faixas["PCT_POLICIAIS"] = dist_faixas["POLICIAIS"] / total_policiais * 100
+    fig = px.bar(dist_faixas,
+        x="FAIXA_SVG",
+        y="POLICIAIS",
+        text="PCT_POLICIAIS",
+        title="Distribuição de policiais por faixa de SVG no período filtrado",
+        labels={"FAIXA_SVG": "Faixa de serviços realizados", "POLICIAIS": "Quantidade de policiais"}
+    )
+    fig.update_traces(
+        texttemplate="%{text:.1f}%",  
+        textposition="auto"
+    )
+    fig.update_layout(**DEFAULT_LAYOUT)
+    st.plotly_chart(fig, width="stretch")
+    with st.expander("Ver tabela detalhada por faixa"):
+        st.dataframe(dist_faixas.assign(PCT_POLICIAIS=lambda d: d["PCT_POLICIAIS"].round(1)))
 
     # Mapa de calor - SVG por Unidade e Mês (ordenado)
     heatmap_svg = (
