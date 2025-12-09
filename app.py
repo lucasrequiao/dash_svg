@@ -325,18 +325,34 @@ with tab2:
     tab_unid, tab_com, tab_pol = st.tabs(["🏢 Unidades", "📍 CPRs", "👮 Policiais"])
 
     with tab_unid:
+
+        #Agrupar unidades pertencentes ao "CA"
+        unidades_ca = df_filtrado[df_filtrado["COMANDO"] == "CA"]["UNIDADE"].unique().tolist()
+        df_unid = df_filtrado.copy()
+        df_unid["UNIDADE_EXIBICAO"] = np.where(df_unid["UNIDADE"].isin(unidades_ca), "CA", df_unid["UNIDADE"])
+        st.dataframe(df_unid)
+
+        # SVG total por unidade CA
+        svg_por_unidade_ca = (
+            df_unid
+            .groupby("UNIDADE_EXIBICAO", as_index=False)["QTD_SVG"]
+            .sum()
+            .sort_values("QTD_SVG", ascending=False)  
+        )
+
         # SVG total por unidade
         svg_por_unidade = (
             df_filtrado
             .groupby("UNIDADE", as_index=False)["QTD_SVG"]
-            .sum()
+            .sum()  
             .sort_values("QTD_SVG", ascending=False)  
         )
+
         total_svg = svg_por_unidade["QTD_SVG"].sum()
-        svg_por_unidade["PORCENTAGEM"] = (svg_por_unidade["QTD_SVG"] / total_svg) * 100
-        svg_por_unidade = svg_por_unidade.sort_values("PORCENTAGEM", ascending=False)
-        fig_unid = px.bar(svg_por_unidade,
-            x="UNIDADE",
+        svg_por_unidade_ca["PORCENTAGEM"] = (svg_por_unidade_ca["QTD_SVG"] / total_svg) * 100
+        svg_por_unidade_ca = svg_por_unidade_ca.sort_values("PORCENTAGEM", ascending=False)
+        fig_unid = px.bar(svg_por_unidade_ca,
+            x="UNIDADE_EXIBICAO",
             y="QTD_SVG",
             orientation="v",
             title="SVG por Unidade",
@@ -344,7 +360,7 @@ with tab2:
         )
         fig_unid.update_traces(
             hovertemplate="Unidade: %{x}<br>Total SVG: %{y}<br>Porcentagem: %{customdata[0]:.1f}%",
-            customdata=svg_por_unidade[["PORCENTAGEM"]].to_numpy()
+            customdata=svg_por_unidade_ca[["PORCENTAGEM"]].to_numpy()
         )
         fig_unid.update_layout(**DEFAULT_LAYOUT)
         st.plotly_chart(fig_unid, width="stretch")
@@ -459,6 +475,31 @@ with tab2:
         )
         fig_top10_pol.update_traces(customdata=top10_pol_porsvg["MATRICULA"])
         st.plotly_chart(fig_top10_pol, width="stretch")
+
+        media_svg_policial = (
+            svg_por_unidade
+            .merge(policiais_por_unidade, on="UNIDADE")
+            .merge(meses_por_unidade, on="UNIDADE")
+        )
+        
+        # Calcula média MENSAL de SVG por policial em cada unidade
+        media_svg_policial["MEDIA_MENSAL_SVG"] = (
+            media_svg_policial["QTD_SVG"] /
+            (media_svg_policial["POLICIAIS_UNICOS"] * media_svg_policial["MESES_ATIVOS"])
+        ).round(2)
+        
+        fig_media_pol = px.bar(
+            media_svg_policial,
+            x="UNIDADE",
+            y="MEDIA_MENSAL_SVG",
+            title="Média MENSAL de SVG por Policial",
+            labels={"MATRICULA": "", "MEDIA_MENSAL_SVG": "Média mensal de SVG / policial"}
+        )
+        fig_media_pol.update_layout(**DEFAULT_LAYOUT)
+        st.plotly_chart(fig_media_pol, width="stretch")
+
+        with st.expander("Ver tabela detalhada"):
+            st.dataframe(media_svg_policial)
 
 
 # =========================================
